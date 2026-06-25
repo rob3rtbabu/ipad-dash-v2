@@ -216,7 +216,8 @@ async function fetchWithTimeout(url: string, timeoutMs = 12000): Promise<EfaResp
       throw new Error(`VRR/EFA HTTP ${response.status} ${response.statusText}`);
     }
 
-    return response.json() as Promise<EfaResponse>;
+    const text = await response.text();
+    return JSON.parse(text) as EfaResponse;
   } finally {
     window.clearTimeout(timeout);
   }

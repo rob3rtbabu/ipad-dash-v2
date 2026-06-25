@@ -5,7 +5,7 @@ type SystemStatusProps = {
   weatherSource: 'live' | 'mock';
   weatherError: string | null;
   weatherFetchedAt: string;
-  trainSource: 'live' | 'fallback';
+  trainSource: 'live' | 'fallback' | 'cached';
   trainError: string | null;
   trainFetchedAt: string;
   warningSource: 'live' | 'fallback';
@@ -18,7 +18,7 @@ const timeFormatter = new Intl.DateTimeFormat('de-DE', { hour: '2-digit', minute
 export function SystemStatus({ weatherSource, weatherError, weatherFetchedAt, trainSource, trainError, trainFetchedAt, warningSource, warningError, warningFetchedAt }: SystemStatusProps) {
   const items = [
     { label: 'Wetter', value: weatherError ? 'Fallback' : weatherSource === 'live' ? 'Live' : 'Mock', icon: <CloudSun size={18} /> },
-    { label: 'S8', value: trainError ? 'Fallback' : trainSource === 'live' ? 'Live' : 'Fallback', icon: <TrainFront size={18} /> },
+    { label: 'Abfahrten', value: trainError ? 'Fallback' : trainSource === 'live' ? 'Live' : trainSource === 'cached' ? 'Letzte Daten' : 'Fallback', icon: <TrainFront size={18} /> },
     { label: 'Warnungen', value: warningError ? 'Fallback' : warningSource === 'live' ? 'Live' : 'Fallback', icon: <AlertTriangle size={18} /> },
   ];
 
@@ -36,7 +36,7 @@ export function SystemStatus({ weatherSource, weatherError, weatherFetchedAt, tr
       </div>
       <div className="mt-4 space-y-1 text-xs text-slate-500">
         <p>Wetter zuletzt aktualisiert: {timeFormatter.format(new Date(weatherFetchedAt))}</p>
-        <p>S8 zuletzt aktualisiert: {timeFormatter.format(new Date(trainFetchedAt))}</p>
+        <p>Abfahrten zuletzt aktualisiert: {timeFormatter.format(new Date(trainFetchedAt))}</p>
         <p>DWD zuletzt aktualisiert: {timeFormatter.format(new Date(warningFetchedAt))}</p>
       </div>
     </Card>
