@@ -1,4 +1,4 @@
-import { BusFront, CircleAlert, RefreshCw, TrainFront, WifiOff } from 'lucide-react';
+import { CircleAlert, RefreshCw, TrainFront, WifiOff } from 'lucide-react';
 import type { Departure } from '../data';
 import type { TrainData } from '../api/trains';
 import { Card } from './Card';
@@ -43,12 +43,10 @@ function DepartureRow({ departure, compact = false }: { departure: Departure; co
 }
 
 function DepartureBlock({ title, icon, items, emptyText }: { title: string; icon: 'train' | 'bus'; items: Departure[]; emptyText: string }) {
-  const Icon = icon === 'bus' ? BusFront : TrainFront;
-
   return (
     <div className="rounded-3xl bg-slate-50/80 p-3 ring-1 ring-slate-100">
       <h3 className="mb-3 flex items-center gap-2 text-base font-semibold text-slate-900">
-        <Icon size={18} /> {title}
+        {icon === 'bus' ? <span className="text-base" aria-hidden="true">BUS</span> : <TrainFront size={18} />} {title}
       </h3>
       <div className="space-y-2">
         {items.length > 0 ? (
