@@ -1,7 +1,7 @@
 import type { Departure } from '../data';
 
-const API_BASE = 'https://v6.db.transport.rest';
-const STATION_QUERY = 'Buettgen-S';
+const API_BASE = 'https://v6.db.transport.rest/locations?query=Büttgen&results=5&language=de';
+const STATION_QUERY = 'Büttgen';
 
 export type TrainDirection = 'duesseldorf' | 'moenchengladbach';
 
