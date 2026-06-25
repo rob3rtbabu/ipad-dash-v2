@@ -1,6 +1,6 @@
 import type { Departure } from '../data';
 
-const API_BASE = 'https://v6.db.transport.rest';
+const API_BASES = ['https://v6.db.transport.rest', 'https://v5.db.api.bahn.guru'];
 const STATION_QUERY = 'Büttgen';
 const BUETTGEN_EVA_ID = '8001261';
 
@@ -72,6 +72,7 @@ async function fetchJson<T>(url: string): Promise<T> {
   try {
     response = await fetch(url, {
       cache: 'no-store',
+      mode: 'cors',
       headers: { accept: 'application/json' },
     });
   } catch (error) {
@@ -109,7 +110,7 @@ function scoreBuettgenStop(stop: TransportStop) {
   return score;
 }
 
-async function resolveBuettgenStopId(): Promise<string> {
+async function resolveBuettgenStopId(apiBase: string): Promise<string> {
   const params = new URLSearchParams({
     query: STATION_QUERY,
     results: '10',
@@ -121,7 +122,7 @@ async function resolveBuettgenStopId(): Promise<string> {
   });
 
   try {
-    const stops = await fetchJson<TransportStop[]>(`${API_BASE}/locations?${params.toString()}`);
+    const stops = await fetchJson<TransportStop[]>(`${apiBase}/locations?${params.toString()}`);
     const ranked = stops
       .filter((stop) => stop.id && (stop.type === 'stop' || stop.type === 'station'))
       .map((stop) => ({ stop, score: scoreBuettgenStop(stop) }))
@@ -170,8 +171,8 @@ function directionOf(item: TransportDeparture): TrainDirection | null {
   return null;
 }
 
-export async function fetchTrainDepartures(): Promise<TrainData> {
-  const stopId = await resolveBuettgenStopId();
+async function fetchDeparturesFromApi(apiBase: string): Promise<TrainData> {
+  const stopId = await resolveBuettgenStopId(apiBase);
   const params = new URLSearchParams({
     duration: '240',
     results: '60',
@@ -190,7 +191,7 @@ export async function fetchTrainDepartures(): Promise<TrainData> {
     taxi: 'false',
   });
 
-  const url = `${API_BASE}/stops/${encodeURIComponent(stopId)}/departures?${params.toString()}`;
+  const url = `${apiBase}/stops/${encodeURIComponent(stopId)}/departures?${params.toString()}`;
   const departures = await fetchJson<TransportDeparture[]>(url);
   const s8 = departures.filter(isS8);
 
@@ -198,11 +199,11 @@ export async function fetchTrainDepartures(): Promise<TrainData> {
   const toMoenchengladbach = s8.filter((item) => directionOf(item) === 'moenchengladbach').map(mapDeparture).slice(0, 4);
 
   if (s8.length === 0) {
-    throw new Error(`Keine S8-Abfahrten für Büttgen gefunden. Verwendete Stations-ID: ${stopId}.`);
+    throw new Error(`Keine S8-Abfahrten für Büttgen gefunden. API: ${apiBase}. Stations-ID: ${stopId}.`);
   }
 
   if (toDuesseldorf.length === 0 && toMoenchengladbach.length === 0) {
-    throw new Error(`S8 gefunden, aber Richtung konnte nicht erkannt werden. Verwendete Stations-ID: ${stopId}.`);
+    throw new Error(`S8 gefunden, aber Richtung konnte nicht erkannt werden. API: ${apiBase}. Stations-ID: ${stopId}.`);
   }
 
   return {
@@ -211,4 +212,18 @@ export async function fetchTrainDepartures(): Promise<TrainData> {
     toDuesseldorf: toDuesseldorf.length ? toDuesseldorf : fallbackTrainData.toDuesseldorf,
     toMoenchengladbach: toMoenchengladbach.length ? toMoenchengladbach : fallbackTrainData.toMoenchengladbach,
   };
+}
+
+export async function fetchTrainDepartures(): Promise<TrainData> {
+  const errors: string[] = [];
+
+  for (const apiBase of API_BASES) {
+    try {
+      return await fetchDeparturesFromApi(apiBase);
+    } catch (error) {
+      errors.push(error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  throw new Error(`Transport-API konnte nicht erreicht werden. Versuchte Endpunkte: ${API_BASES.join(', ')}. Details: ${errors.join(' | ')}`);
 }

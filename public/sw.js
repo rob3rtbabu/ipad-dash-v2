@@ -1,6 +1,6 @@
-const CACHE_NAME = 'buettgen-dashboard-v7-s8-fix';
+const CACHE_NAME = 'buettgen-dashboard-v8-s8-api-fallback';
 const APP_SHELL = ['./', './index.html', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png'];
-const API_HOSTS = ['api.open-meteo.com', 'v6.db.transport.rest', 'www.dwd.de'];
+const API_HOSTS = ['api.open-meteo.com', 'v6.db.transport.rest', 'v5.db.api.bahn.guru', 'www.dwd.de'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)));

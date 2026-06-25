@@ -88,3 +88,8 @@ Die S8-Anbindung nutzt jetzt eine robustere Stationsauflösung:
 - zeigt genauere Fehlermeldungen inklusive verwendeter URL oder Stations-ID
 
 Wenn auf iPhone/iPad nach dem Deployment noch alte Daten erscheinen, die PWA einmal vom Home-Bildschirm löschen und neu hinzufügen. Der Service-Worker-Cache wurde auf `buettgen-dashboard-v7-s8-fix` erhöht.
+
+
+## S8-Fix v8
+
+Die S8-Abfrage versucht zuerst `https://v6.db.transport.rest` und danach automatisch `https://v5.db.api.bahn.guru`. Dadurch bleibt die App robuster, falls einer der freien Transport-Endpunkte im Browser zeitweise nicht erreichbar ist.
