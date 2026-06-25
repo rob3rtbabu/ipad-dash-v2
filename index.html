@@ -1,21 +1,33 @@
-<!doctype html>
-<html lang="de">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="theme-color" content="#f7fbff" />
-    <meta name="color-scheme" content="light" />
-    <meta name="mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    <meta name="apple-mobile-web-app-title" content="Büttgen" />
-    <meta name="description" content="Smart-Home Dashboard für Wetter in Büttgen, DWD-Warnungen und S8-Abfahrten." />
-    <link rel="manifest" href="./manifest.webmanifest" />
-    <link rel="apple-touch-icon" href="./icons/icon-192.png" />
-    <title>Büttgen Dashboard</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
-</html>
+import { useCallback, useEffect, useState } from 'react';
+import { fallbackWarningData, fetchDwdWarnings, type WarningData } from '../api/dwd';
+
+const FIFTEEN_MINUTES = 15 * 60 * 1000;
+
+export function useWarnings() {
+  const [data, setData] = useState<WarningData>(fallbackWarningData);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const refresh = useCallback(async () => {
+    try {
+      setLoading(true);
+      const liveData = await fetchDwdWarnings();
+      setData(liveData);
+      setError(null);
+    } catch (unknownError) {
+      const message = unknownError instanceof Error ? unknownError.message : 'DWD-Warnungen konnten nicht geladen werden.';
+      setData({ ...fallbackWarningData, fetchedAt: new Date().toISOString() });
+      setError(message);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void refresh();
+    const intervalId = window.setInterval(() => void refresh(), FIFTEEN_MINUTES);
+    return () => window.clearInterval(intervalId);
+  }, [refresh]);
+
+  return { data, loading, error, refresh };
+}
