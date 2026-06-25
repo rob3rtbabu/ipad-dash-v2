@@ -4,7 +4,7 @@ const VRR_EFA_URL = 'https://efa.vrr.de/standard/XML_DM_REQUEST';
 const BUETTGEN_STOP_ID = '20020049';
 const CACHE_KEY = 'buettgen-vrr-departures-last-good';
 
-export type DeparturesData = {
+export type TrainData = {
   toDuesseldorf: Departure[];
   toMoenchengladbach: Departure[];
   buses: Departure[];
@@ -12,6 +12,8 @@ export type DeparturesData = {
   source: 'live' | 'cached' | 'fallback';
   error?: string;
 };
+
+export type DeparturesData = TrainData;
 
 type EfaDeparture = {
   dateTime?: {
@@ -48,7 +50,7 @@ type EfaResponse = {
   };
 };
 
-export const fallbackDeparturesData: DeparturesData = {
+export const fallbackTrainData: TrainData = {
   source: 'fallback',
   fetchedAt: new Date().toISOString(),
   error: 'Live-Abfahrten aktuell nicht erreichbar.',
@@ -59,7 +61,7 @@ export const fallbackDeparturesData: DeparturesData = {
       direction: 'Düsseldorf / Neuss',
       platform: '–',
       delay: 0,
-      status: 'Live-Daten nicht erreichbar',
+      status: 'pünktlich',
     },
   ],
   toMoenchengladbach: [
@@ -69,7 +71,7 @@ export const fallbackDeparturesData: DeparturesData = {
       direction: 'Mönchengladbach',
       platform: '–',
       delay: 0,
-      status: 'Live-Daten nicht erreichbar',
+      status: 'pünktlich',
     },
   ],
   buses: [
@@ -79,10 +81,12 @@ export const fallbackDeparturesData: DeparturesData = {
       direction: 'Ziel aktuell nicht verfügbar',
       platform: '–',
       delay: 0,
-      status: 'Live-Daten nicht erreichbar',
+      status: 'pünktlich',
     },
   ],
 };
+
+export const fallbackDeparturesData = fallbackTrainData;
 
 function normalize(value?: string | null) {
   return (value ?? '')
@@ -145,8 +149,6 @@ function getDirection(item: EfaDeparture) {
 function isBus(item: EfaDeparture) {
   const line = normalize(getLine(item));
   const motType = item.servingLine?.motType;
-
-  // EFA motType 5 is commonly bus. Some responses also expose bus lines by number/name only.
   return motType === '5' || line.includes('bus');
 }
 
@@ -175,7 +177,7 @@ function mapDeparture(item: EfaDeparture): Departure {
     direction: getDirection(item),
     platform: item.platform || '–',
     delay,
-    status: delay > 0 ? `+${delay} min` : 'pünktlich',
+    status: delay > 0 ? 'verspätet' : 'pünktlich',
   };
 }
 
@@ -194,24 +196,24 @@ async function fetchWithTimeout(url: string, timeoutMs = 12000): Promise<EfaResp
       throw new Error(`VRR/EFA HTTP ${response.status} ${response.statusText}`);
     }
 
-    return response.json();
+    return response.json() as Promise<EfaResponse>;
   } finally {
     window.clearTimeout(timeout);
   }
 }
 
-function getCachedDepartures(): DeparturesData | null {
+function getCachedDepartures(): TrainData | null {
   try {
     const raw = localStorage.getItem(CACHE_KEY);
     if (!raw) return null;
-    const cached = JSON.parse(raw) as DeparturesData;
+    const cached = JSON.parse(raw) as TrainData;
     return { ...cached, source: 'cached' };
   } catch {
     return null;
   }
 }
 
-function saveCachedDepartures(data: DeparturesData) {
+function saveCachedDepartures(data: TrainData) {
   try {
     localStorage.setItem(CACHE_KEY, JSON.stringify(data));
   } catch {
@@ -233,7 +235,7 @@ function buildVrrEfaUrl() {
   return `${VRR_EFA_URL}?${params.toString()}`;
 }
 
-export async function fetchTrainDepartures(): Promise<DeparturesData> {
+export async function fetchTrainDepartures(): Promise<TrainData> {
   const url = buildVrrEfaUrl();
 
   try {
@@ -241,7 +243,7 @@ export async function fetchTrainDepartures(): Promise<DeparturesData> {
     const departures = json.departureMonitor?.departureList ?? [];
 
     if (!Array.isArray(departures) || departures.length === 0) {
-      throw new Error('VRR/EFA liefert keine Abfahrten fuer Kaarst Bue ttgen S.');
+      throw new Error('VRR/EFA liefert keine Abfahrten fuer Kaarst Buettgen S.');
     }
 
     const toDuesseldorf = departures
@@ -261,7 +263,7 @@ export async function fetchTrainDepartures(): Promise<DeparturesData> {
       .map(mapDeparture)
       .slice(0, 6);
 
-    const data: DeparturesData = {
+    const data: TrainData = {
       source: 'live',
       fetchedAt: new Date().toISOString(),
       toDuesseldorf,
@@ -283,7 +285,7 @@ export async function fetchTrainDepartures(): Promise<DeparturesData> {
     }
 
     return {
-      ...fallbackDeparturesData,
+      ...fallbackTrainData,
       error: error instanceof Error ? error.message : 'Live-Abfahrten aktuell nicht erreichbar.',
     };
   }
