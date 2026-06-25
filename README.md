@@ -93,3 +93,7 @@ Wenn auf iPhone/iPad nach dem Deployment noch alte Daten erscheinen, die PWA ein
 ## S8-Fix v8
 
 Die S8-Abfrage versucht zuerst `https://v6.db.transport.rest` und danach automatisch `https://v5.db.api.bahn.guru`. Dadurch bleibt die App robuster, falls einer der freien Transport-Endpunkte im Browser zeitweise nicht erreichbar ist.
+
+## Layout-Update: kompakter iPad-Modus
+
+Diese Version fasst alle Wetterinformationen in einer gemeinsamen Wetterkarte zusammen: aktuelle Werte, Hauptmetriken, Stundenverlauf und Morgen-Vorschau. Das Dashboard nutzt kleinere Abstände und Karten, damit es auf dem iPad deutlich besser in eine Bildschirmhöhe passt.
