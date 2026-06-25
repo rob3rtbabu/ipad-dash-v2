@@ -1,4 +1,4 @@
-const CACHE_NAME = 'buettgen-dashboard-v6';
+const CACHE_NAME = 'buettgen-dashboard-v7-s8-fix';
 const APP_SHELL = ['./', './index.html', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png'];
 const API_HOSTS = ['api.open-meteo.com', 'v6.db.transport.rest', 'www.dwd.de'];
 

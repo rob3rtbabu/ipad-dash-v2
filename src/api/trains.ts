@@ -1,7 +1,8 @@
 import type { Departure } from '../data';
 
-const API_BASE = 'https://v6.db.transport.rest/locations?query=Büttgen&results=5&language=de';
+const API_BASE = 'https://v6.db.transport.rest';
 const STATION_QUERY = 'Büttgen';
+const BUETTGEN_EVA_ID = '8001261';
 
 export type TrainDirection = 'duesseldorf' | 'moenchengladbach';
 
@@ -16,6 +17,16 @@ type TransportStop = {
   id?: string;
   name?: string;
   type?: string;
+  products?: {
+    suburban?: boolean;
+    nationalExpress?: boolean;
+    national?: boolean;
+    regionalExpress?: boolean;
+    regional?: boolean;
+    bus?: boolean;
+    subway?: boolean;
+    tram?: boolean;
+  };
 };
 
 type TransportDeparture = {
@@ -29,6 +40,7 @@ type TransportDeparture = {
   line?: {
     name?: string;
     product?: string;
+    mode?: string;
   } | null;
 };
 
@@ -47,30 +59,81 @@ export const fallbackTrainData: TrainData = {
   ],
 };
 
+function explainFetchError(error: unknown, url: string) {
+  if (error instanceof TypeError) {
+    return `Transport-API konnte nicht erreicht werden. Safari meldet oft nur "Load failed". URL: ${url}`;
+  }
+  if (error instanceof Error) return `${error.message} URL: ${url}`;
+  return `Unbekannter Fehler beim Laden der Transport-API. URL: ${url}`;
+}
+
 async function fetchJson<T>(url: string): Promise<T> {
-  const response = await fetch(url, { headers: { accept: 'application/json' } });
-  if (!response.ok) throw new Error(`API ${response.status}: ${response.statusText}`);
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      cache: 'no-store',
+      headers: { accept: 'application/json' },
+    });
+  } catch (error) {
+    throw new Error(explainFetchError(error, url));
+  }
+
+  if (!response.ok) {
+    const body = await response.text().catch(() => '');
+    throw new Error(`Transport-API ${response.status}: ${response.statusText}${body ? ` - ${body.slice(0, 160)}` : ''}. URL: ${url}`);
+  }
+
   return response.json() as Promise<T>;
 }
 
-function isBuettgenStop(stop: TransportStop) {
-  const name = (stop.name ?? '').toLowerCase();
-  return name === 'büttgen' || name.includes('büttgen s') || name.includes('bü ttgen');
+function normalized(value?: string | null) {
+  return (value ?? '')
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function scoreBuettgenStop(stop: TransportStop) {
+  const name = normalized(stop.name);
+  let score = 0;
+
+  if (stop.type === 'stop' || stop.type === 'station') score += 20;
+  if (name === 'buttgen' || name === 'buettgen') score += 60;
+  if (name.includes('buttgen') || name.includes('buettgen')) score += 30;
+  if (stop.products?.suburban) score += 25;
+  if (stop.products?.bus) score -= 10;
+  if (stop.products?.tram || stop.products?.subway) score -= 5;
+
+  return score;
 }
 
 async function resolveBuettgenStopId(): Promise<string> {
   const params = new URLSearchParams({
     query: STATION_QUERY,
-    results: '8',
+    results: '10',
     stops: 'true',
     addresses: 'false',
     poi: 'false',
+    linesOfStops: 'true',
     language: 'de',
   });
-  const stops = await fetchJson<TransportStop[]>(`${API_BASE}/locations?${params.toString()}`);
-  const exact = stops.find(isBuettgenStop) ?? stops.find((stop) => (stop.name ?? '').toLowerCase().includes('büttgen'));
-  if (!exact?.id) throw new Error('Bahnhof Büttgen S wurde in der Transport-API nicht gefunden.');
-  return exact.id;
+
+  try {
+    const stops = await fetchJson<TransportStop[]>(`${API_BASE}/locations?${params.toString()}`);
+    const ranked = stops
+      .filter((stop) => stop.id && (stop.type === 'stop' || stop.type === 'station'))
+      .map((stop) => ({ stop, score: scoreBuettgenStop(stop) }))
+      .sort((a, b) => b.score - a.score);
+
+    const best = ranked.find((entry) => entry.score >= 50)?.stop ?? ranked[0]?.stop;
+    if (best?.id) return best.id;
+  } catch {
+    // Wenn die Suche blockiert ist, versuchen wir die bekannte EVA-Nummer direkt.
+  }
+
+  return BUETTGEN_EVA_ID;
 }
 
 function formatTime(iso?: string | null) {
@@ -87,7 +150,7 @@ function mapDeparture(item: TransportDeparture): Departure {
   const delay = delayMinutes(item.delay);
   return {
     time: formatTime(item.when ?? item.plannedWhen),
-    line: item.line?.name ?? 'S8',
+    line: (item.line?.name ?? 'S8').replace('S 8', 'S8'),
     direction: item.direction ?? 'Unbekannte Richtung',
     platform: item.platform ?? item.plannedPlatform ?? '–',
     delay,
@@ -96,23 +159,25 @@ function mapDeparture(item: TransportDeparture): Departure {
 }
 
 function isS8(item: TransportDeparture) {
-  return (item.line?.name ?? '').replaceAll(' ', '').toUpperCase() === 'S8';
+  const lineName = normalized(item.line?.name).replaceAll(' ', '');
+  return lineName === 's8' || lineName.includes('s8');
 }
 
 function directionOf(item: TransportDeparture): TrainDirection | null {
-  const direction = (item.direction ?? '').toLowerCase();
-  if (direction.includes('mönchengladbach') || direction.includes('moenchengladbach')) return 'moenchengladbach';
-  if (direction.includes('düsseldorf') || direction.includes('duesseldorf') || direction.includes('wuppertal') || direction.includes('hagen')) return 'duesseldorf';
+  const direction = normalized(item.direction);
+  if (direction.includes('monchengladbach') || direction.includes('moenchengladbach')) return 'moenchengladbach';
+  if (direction.includes('dusseldorf') || direction.includes('duesseldorf') || direction.includes('wuppertal') || direction.includes('hagen')) return 'duesseldorf';
   return null;
 }
 
 export async function fetchTrainDepartures(): Promise<TrainData> {
   const stopId = await resolveBuettgenStopId();
   const params = new URLSearchParams({
-    duration: '180',
-    results: '24',
+    duration: '240',
+    results: '60',
     language: 'de',
     remarks: 'true',
+    includeRelatedStations: 'true',
     suburban: 'true',
     nationalExpress: 'false',
     national: 'false',
@@ -125,14 +190,19 @@ export async function fetchTrainDepartures(): Promise<TrainData> {
     taxi: 'false',
   });
 
-  const departures = await fetchJson<TransportDeparture[]>(`${API_BASE}/stops/${encodeURIComponent(stopId)}/departures?${params.toString()}`);
+  const url = `${API_BASE}/stops/${encodeURIComponent(stopId)}/departures?${params.toString()}`;
+  const departures = await fetchJson<TransportDeparture[]>(url);
   const s8 = departures.filter(isS8);
 
   const toDuesseldorf = s8.filter((item) => directionOf(item) === 'duesseldorf').map(mapDeparture).slice(0, 4);
   const toMoenchengladbach = s8.filter((item) => directionOf(item) === 'moenchengladbach').map(mapDeparture).slice(0, 4);
 
+  if (s8.length === 0) {
+    throw new Error(`Keine S8-Abfahrten für Büttgen gefunden. Verwendete Stations-ID: ${stopId}.`);
+  }
+
   if (toDuesseldorf.length === 0 && toMoenchengladbach.length === 0) {
-    throw new Error('Keine S8-Abfahrten für Büttgen in den nächsten 180 Minuten gefunden.');
+    throw new Error(`S8 gefunden, aber Richtung konnte nicht erkannt werden. Verwendete Stations-ID: ${stopId}.`);
   }
 
   return {

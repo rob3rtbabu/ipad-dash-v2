@@ -75,3 +75,16 @@ buettgen-dashboard/
 - Warnungen: DWD WarnWetter JSON
 
 Hinweis: Browser oder einzelne APIs können gelegentlich Anfragen blockieren. In diesem Fall zeigt die App eine sichtbare Fehlermeldung und stabile Fallback-Daten, damit das Dashboard nicht leer bleibt.
+
+## Update: S8-Live-Daten Fix
+
+Die S8-Anbindung nutzt jetzt eine robustere Stationsauflösung:
+
+- sucht Büttgen automatisch über `https://v6.db.transport.rest/locations`
+- bevorzugt Stop-/Station-Ergebnisse mit S-Bahn-Produkt
+- fällt auf die bekannte EVA-ID `8001261` für Bahnhof Büttgen zurück
+- lädt danach Abfahrten über `/stops/:id/departures`
+- filtert nur `S8`/`S 8`
+- zeigt genauere Fehlermeldungen inklusive verwendeter URL oder Stations-ID
+
+Wenn auf iPhone/iPad nach dem Deployment noch alte Daten erscheinen, die PWA einmal vom Home-Bildschirm löschen und neu hinzufügen. Der Service-Worker-Cache wurde auf `buettgen-dashboard-v7-s8-fix` erhöht.
